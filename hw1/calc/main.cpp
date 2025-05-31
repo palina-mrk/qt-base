@@ -161,6 +161,7 @@ int main(int argc, char *argv[])
     QObject::connect(btnDot, &QToolButton::clicked, calc, &Logic::inputDot);
     QObject::connect(btnDel, &QToolButton::clicked, calc, &Logic::delDig);
     QObject::connect(btnSign, &QToolButton::clicked, calc, &Logic::chSign);
+    QObject::connect(btnSqr, &QToolButton::clicked, calc, &Logic::test);
 
 
     QObject::connect(calc, &Logic::onChanged, printText);

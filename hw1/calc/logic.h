@@ -116,33 +116,78 @@ private:
                 if (nines == counter)
                     ++counter;
             }
-            setInt(c);
+            visValue[0] = ' ';
+            visValue[1] = '0';
+            visValue[maxLen + 1] = '\0';
+            visValue[maxLen] = '\0';
+            value = c;
+            length = counter + 1;
+            is_dot = false;
+            divisor = 1;
             is_neg = neg;
+            for(size_t i = length - 1; i ; --i){
+                visValue[i] = '0' + (c % 10);
+                c /= 10;
+            }
             return true;
         }
 
-        // теперь знаем, что влезет всё число
-        // у нас (maxLen - 1 - counter) позиций для цифр
-        // запишем число с нулями после запятой, потом ненужные нули сотрем
+        size_t before_dot = counter;
         int dig;
-        long int divi = 1;
+        divisor = 1;
         while (counter < maxLen - 1){
-            c = c*10 + int(fr*10);
-            dig = int(fr*10);
-            fr = fr*10 - dig;
+            fr *= 10;
+            dig = (int)fr;
+            c = c*10 + dig;
+            fr -= dig;
             nines += (dig == 9);
-            divi *= 10;
+            divisor *= 10;
             ++counter;
         }
         if (fr >= 0.5){
             ++c;
-            if (nines == counter)
-                divi /= 10; // на одну после запятой влезет меньше
+            if (nines == counter){
+                ++before_dot;
+                c /= 10;
+                divisor /= 10; // на одну после запятой влезет меньше
+            }
         }
-        setInt(c);
-        divisor = divi;
+        while(!(c%10) && (divisor > 1)){
+            c /= 10;
+            divisor /= 10;
+            --counter;
+        }
+        if(divisor == 1) {
+            is_neg = neg;
+            is_dot = false;
+            length = counter + 1;
+            value = c;
+            for(size_t i = maxLen + 1; i >= length; --i)
+                visValue[i] = '\0';
+            for(size_t i = length - 1; i; --i){
+                visValue[i] = '0' + c%10;
+                c /= 10;
+            }
+            visValue[0] = ' ';
+            return true;
+        }
+
         is_neg = neg;
-        toTrueMeaning();
+        is_dot = true;
+        length = counter + 2;
+        value = c;
+        for(size_t i = maxLen + 1; i >= length; --i)
+            visValue[i] = '\0';
+        for(size_t i = length - 1; i > before_dot; --i){
+            visValue[i] = '0' + c%10;
+            c /= 10;
+        }
+        visValue[before_dot + 1] = '.';
+        for(size_t i = before_dot; i ; --i){
+            visValue[i] = '0' + c%10;
+            c /= 10;
+        }
+        return true;
     }
 public:
     Number() {
@@ -303,6 +348,14 @@ public:
         a = (long double)value / divisor;
         return setNumber(logl(a));
     }
+    void test(){
+        long double d = value;
+        value = 0;
+        for(size_t i =0 ; i < maxLen + 2; ++i)
+            visValue[i] = '\0';
+        std::cout << setNumber(d) << visValue;
+        return;
+    }
 };
 
 
@@ -337,7 +390,7 @@ public slots:
     void add() {doubleOp('-');}
     void div() {doubleOp(':');}
     void sub() {doubleOp('-');}
-   // void equal();
+    void test() {currNum.test();}
 private:
     bool isBlocked = true;
     char op = '\0';
