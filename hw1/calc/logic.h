@@ -7,7 +7,7 @@
 #include <cmath>
 
 class Number{
-    static const size_t maxLen = 10;
+    static const size_t maxLen = 15;
     size_t length = 2;
     bool is_dot = false;
     bool is_neg = false;
@@ -50,74 +50,84 @@ public:
         return true;
     }
 private:
-    bool setInt(long long int n){
-        long long int tmp = (n > 0 ? n : -n);
-        size_t counter = 0;
-        while(tmp >= 1){
-            tmp /= 10;
-            ++counter;
-        }
-        if(counter >= maxLen + 1)
+    bool setTenPow(long long int pow, bool neg){
+        if((pow + 1 > (long long int)maxLen)
+            || (2 - pow > (long long int)maxLen))
             return false;
 
-        if(counter == 0){
-            visValue[0] = ' ';
-            visValue[1] = '0';
-            for(size_t i = 2; i <= maxLen + 1; ++i)
-                visValue[i] = '\0';
+        if(pow >= 0){
+            // " 10000"
+            //  012345   length = 6 pow = 4 maxLen + 2 >= 6
+            is_dot = false;
+            is_neg = neg;
+            visValue[0] = neg ? '-' : ' ';
+            visValue[1] = '1';
+            value = 1;
+            divisor = 1;
             length = 2;
-            is_dot = false; is_neg = false;
-            divisor = 1; value = 0;
-            return true;
-        }
-
-        is_neg = (n < 0);
-        is_dot = false;
-        divisor = 1;
-        length = counter + 1;
-        value = (n > 0 ? n : -n);
-        tmp = value;
-        for(size_t i = maxLen + 1; i >= length; --i)
-            visValue[i] = '\0';
-        for(size_t i = length - 1; i; --i){
-            visValue[i] = '0' + (tmp % 10);
-            tmp /= 10;
+            while(pow--){
+                visValue[length++] = '0';
+                value *= 10;
+            }
+            for(size_t i = length; i <= maxLen + 1; ++i)
+                visValue[i++] = '\0';
+        } else {
+            // " 0.001"
+            //  012345   length = 6 pow = -3 maxLen + 2 >= 6
+            is_dot = true;
+            is_neg = neg;
+            visValue[0] = neg ? '-' : ' ';
+            visValue[1] = '0';
+            visValue[2] = '.';
+            value = 1;
+            divisor = 10;
+            length = 3;
+            while(++pow){
+                visValue[length++] = '0';
+                divisor *= 10;
+            }
+            visValue[length++] = '1';
+            for(size_t i = length; i <= maxLen + 1; ++i)
+                visValue[i++] = '\0';
         }
 
         return true;
     }
 
-    bool setNumber(long double d){
-        //вычисляем знак
-        // c - целая часть, fr - дробная
-        long double cd, fr = modfl((d < 0 ? - d : d), &cd);
-        long long int c = cd;
+    bool setDouble(long double d){
+        if(!std::isfinite(d))
+            return false;
         size_t counter = 0, nines = 0;
         bool neg = (d < 0);
+        long long int c = (d < 0 ? -d : d);
         //считаем количество знаков слева от запятой
         while (c >= 1){
             nines += ((c%10) == 9);
             c /= 10;
             ++counter;
         }
-        if(counter == 0)      //если сразу вышли из цикла -> counter == 0 и число дробное
-            counter = 1;      //если counter != 0, значит, counter == кол-ву цифр слева от запятой
+        //если сразу вышли из цикла -> counter == 0 и число дробное
+        //если counter != 0, значит, counter == кол-ву цифр слева от запятой
 
 
         if (counter > maxLen)
             return false;
-        // исключаем случай переполнения d == 9999999.6
-        // maxlen девяток и округление в бОльшую сторону
-        if (counter == maxLen && nines == counter && fr >= 0.5)
-            return false;
-        else if (counter >= maxLen - 1){ // влезет только целая часть
-            if (fr >= 0.5){
+
+        // c = cd - целая, fr - дробная часть
+        long double cd, fr = modfl((d < 0 ? - d : d), &cd);
+        c = cd;
+        // обрабатываем случаи, когда влезет только целая часть
+        if (counter >= maxLen - 1){
+            // visValues = " xxx"
+            // indexes      0123  length = 4 counter = 3
+            //если при округлении увеличится кол-во цифр
+            // это - только если все девятки
+            if ((nines == counter)&&(fr >= 0.5))
+                return setTenPow(counter + 1, neg);
+            if (fr >= 0.5)
                 ++c;
-                if (nines == counter)
-                    ++counter;
-            }
-            visValue[0] = ' ';
-            visValue[1] = '0';
+
+            visValue[0] = neg ? '-' : ' ';
             visValue[maxLen + 1] = '\0';
             visValue[maxLen] = '\0';
             value = c;
@@ -132,60 +142,127 @@ private:
             return true;
         }
 
-        size_t before_dot = counter;
-        int dig;
-        divisor = 1;
-        while (counter < maxLen - 1){
-            fr *= 10;
-            dig = (int)fr;
-            c = c*10 + dig;
-            fr -= dig;
-            nines += (dig == 9);
-            divisor *= 10;
-            ++counter;
-        }
-        if (fr >= 0.5){
-            ++c;
-            if (nines == counter){
-                ++before_dot;
-                c /= 10;
-                divisor /= 10; // на одну после запятой влезет меньше
+        // теперь знаем, что наше число точно влезет с учетом точки
+        // значит, рассчитываем на maxLen - 1 мест чисто для цифр
+
+        // обрабатываем чисто дробное число
+        // сначала нужно домножить на степень десятки и округлить
+        // после запятой рассчитываем на maxLen - 2 цифры
+        if(!counter){
+            // в данном случае counter == nines == 0, c == 0
+            divisor = 1;
+            while (counter <= maxLen - 2){
+                fr *= 10;
+                c = c*10 + (int)fr;
+                divisor *= 10;
+                nines += (int(fr) == 9);
+                counter++;
+                fr = fr - (int)fr;
             }
-        }
-        while(!(c%10) && (divisor > 1)){
-            c /= 10;
+            //counter = кол-во цифр посл запятой
+            if ((nines == counter)&&(fr >= 0.5)) // если к-во цифр изменится
+                return setTenPow(0, neg);
+
+            if (fr >= 0.5)
+                ++c;
+            // c - наше число, divisor - делитель
+            // сократим, сколько сможем
+            while( !(divisor%10) && !(c%10) ){
+                divisor /= 10;
+                c /= 10;
+                --counter;
+            }
+
+            if(divisor == 1){ // получили 0 после округления
+                // visValues = " 0"
+                // indexes      01  length = 2 counter = 5
+                visValue[0] = ' ';
+                visValue[1] = '0';
+                visValue[maxLen] = '\0';
+                value = 0;
+                length = 2;
+                is_dot = false;
+                is_neg = false;
+                for(size_t i = length; i <= maxLen + 1; ++i)
+                    visValue[i] = '\0';
+            } else {
+                // visValues = " 0.xxx"
+                // indexes      012345 length = 6 counter = 3
+                length = counter + 3;
+                visValue[0] = neg ? '-' : ' ';
+                visValue[1] = '0';
+                visValue[2] = '.';
+                value = c;
+                is_dot = true;
+                is_neg = neg;
+                for(size_t i = length; i <= maxLen + 1; ++i)
+                    visValue[i] = '\0';
+                for(size_t i = length - 1; i > 2; --i){
+                    visValue[i] = '0' + (c%10);
+                    c /= 10;
+                }
+            }
+            return true;
+         }
+
+        // теперь обрабатываем число с целой и дробной частями
+        size_t before_dot = counter;
+        divisor = 1;
+        while (counter <= maxLen - 1){
+            fr *= 10;
+            c = c*10 + (int)fr;
+            divisor *= 10;
+            nines += (int(fr) == 9);
+            counter++;
+            fr = fr - (int)fr;
+        } // теперь counter = кол-во цифр
+
+        if ((nines == counter)&&(fr >= 0.5)) // если к-во цифр изменится
+            return setTenPow(before_dot + 1, neg);
+
+        if (fr >= 0.5)
+            ++c;
+        // c - наше число, divisor - делитель
+        // сократим, сколько сможем
+        while( !(divisor%10) && !(c%10) ){
             divisor /= 10;
+            c /= 10;
             --counter;
         }
-        if(divisor == 1) {
-            is_neg = neg;
-            is_dot = false;
-            length = counter + 1;
+
+        if(divisor == 1){ // если число оказалось целым
+            // visValues = " xxx"
+            // indexes      0123  length = 4 counter = 3
+            visValue[0] = neg ? '-' : ' ';
             value = c;
-            for(size_t i = maxLen + 1; i >= length; --i)
+            length = counter + 1;
+            is_dot = false;
+            is_neg = neg;
+            for(size_t i = length; i <= maxLen + 1; ++i)
                 visValue[i] = '\0';
             for(size_t i = length - 1; i; --i){
-                visValue[i] = '0' + c%10;
+                visValue[i] = '0' + (c%10);
                 c /= 10;
             }
-            visValue[0] = ' ';
-            return true;
-        }
-
-        is_neg = neg;
-        is_dot = true;
-        length = counter + 2;
-        value = c;
-        for(size_t i = maxLen + 1; i >= length; --i)
-            visValue[i] = '\0';
-        for(size_t i = length - 1; i > before_dot; --i){
-            visValue[i] = '0' + c%10;
-            c /= 10;
-        }
-        visValue[before_dot + 1] = '.';
-        for(size_t i = before_dot; i ; --i){
-            visValue[i] = '0' + c%10;
-            c /= 10;
+        } else {
+            // visValues = " xxx.xx"
+            // indexes      0123456  length = 7 counter = 5
+            length = counter + 2;
+            visValue[0] = neg ? '-' : ' ';
+            value = c;
+            is_dot = true;
+            is_neg = neg;
+            for(size_t i = length; i <= maxLen + 1; ++i)
+                visValue[i] = '\0';
+            for(size_t i = length - 1; i > before_dot + 1; --i){
+                visValue[i] = '0' + (c%10);
+                c /= 10;
+            }
+            visValue[before_dot + 1] = '.';
+            for(size_t i = before_dot; i ; --i){
+                visValue[i] = '0' + (c%10);
+                c /= 10;
+            }
         }
         return true;
     }
@@ -306,67 +383,107 @@ public:
     }
     bool add(Number& n){
         long double a, b;
-        a = is_neg ? -(long double)value / divisor : (long double)value / divisor;
-        b = n.is_neg ? -(long double)n.value / n.divisor : (long double)n.value / n.divisor;
+        a = (long double)value / divisor;
+        b = (long double)n.value / n.divisor;
+        if(is_neg) a = -a;
+        if(n.is_neg) b = -b;
         a += b;
-        return setNumber(a);
+        return setDouble(a);
     }
     bool sub(Number& n){
         long double a, b;
-        a = is_neg ? -(long double)value / divisor : (long double)value / divisor;
-        b = n.is_neg ? -(long double)n.value / n.divisor : (long double)n.value / n.divisor;
+        a = (long double)value / divisor;
+        b = (long double)n.value / n.divisor;
+        if(is_neg) a = -a;
+        if(n.is_neg) b = -b;
         a -= b;
-        return setNumber(a);
+        return setDouble(a);
     }
     bool mult(Number& n){
         long double a, b;
-        a = is_neg ? -(long double)value / divisor : (long double)value / divisor;
-        b = n.is_neg ? -(long double)n.value / n.divisor : (long double)n.value / n.divisor;
+        a = (long double)value / divisor;
+        b = (long double)n.value / n.divisor;
         a *= b;
-        return setNumber(a);
+        if(is_neg != n.is_neg)
+            a = -a;
+        return setDouble(a);
     }
     bool div(Number& n){
         long double a, b;
-        a = is_neg ? -(long double)value / divisor : (long double)value / divisor;
-        b = n.is_neg ? -(long double)n.value / n.divisor : (long double)n.value / n.divisor;
-        if(b < __DBL_EPSILON__)
+
+        a = (long double)value / divisor;
+        b = (long double)n.value / n.divisor;
+        if(b < __DBL_EPSILON__ && b > -__DBL_EPSILON__)
             return false;
         a /= b;
-        return setNumber(a);
+        if(is_neg != n.is_neg)
+            a = -a;
+        return setDouble(a);
+    }
+    bool pow(Number& n){
+        long double a, b;
+        a = (long double)value / divisor;
+        b = (long double)n.value / n.divisor;
+        if(is_neg) a = -a;
+        if(n.is_neg) b = -b;
+        if(b < __DBL_EPSILON__ && b > -__DBL_EPSILON__)
+            return false;
+        a = powl(a, b);
+        return setDouble(a);
     }
     bool sqrt(){
         if(is_neg)
             return false;
         long double a;
         a = (long double)value / divisor;
-        return setNumber(sqrtl(a));
+        return setDouble(sqrtl(a));
     }
     bool log(){
         if(is_neg)
             return false;
         long double a;
         a = (long double)value / divisor;
-        return setNumber(logl(a));
+        return setDouble(logl(a));
+    }
+    bool sin(){
+        long double a;
+        a = (long double)value / divisor;
+        a *= (M_PIl/180.0); // в радианы
+        return setDouble(sinl(a));
+    }
+    bool cos(){
+        long double a;
+        a = (long double)value / divisor;
+        a *= (M_PIl/180.0); // в радианы
+        return setDouble(cosl(a));
     }
     void test(){
         long double d = value;
         value = 0;
         for(size_t i =0 ; i < maxLen + 2; ++i)
             visValue[i] = '\0';
-        std::cout << setNumber(d) << visValue;
+        setDouble(d);
+        std::cout << visValue << '\n';
         return;
     }
 };
+
+enum STATE {isOff = 1,
+            isError = 2,
+            toRenew = 4};
 
 
 class Logic : public QObject {
     Q_OBJECT
 private:
     void inputDigit(char c);
-    void doubleOp(char c);
+    void operateBinary(char op);
+    void operateUnary(char op);
+    void operateMem(char op);
 public:
     Logic(QObject *parent = nullptr) : QObject(parent) {};
-    QString getCurrent() {return (isBlocked ? "" : currNum.getString());};
+    QString getCurrent() {return ((state & isOff)? "" :
+                                (state & isError) ? "ERROR" : currNum.getString());};
 signals:
     QString onChanged();
 public slots:
@@ -386,16 +503,26 @@ public slots:
     void inputDot() {inputDigit('.');}
     void delDig();
     void chSign();
-    void mult(){doubleOp('x');}
-    void add() {doubleOp('-');}
-    void div() {doubleOp(':');}
-    void sub() {doubleOp('-');}
-    void test() {currNum.test();}
+    void operateEvaluate();
+    void binMult(){operateBinary('x');}
+    void binAdd() {operateBinary('+');}
+    void binDiv() {operateBinary(':');}
+    void binSub() {operateBinary('-');}
+    void binPow() {operateBinary('p');}
+    void unSin() {operateUnary('s');}
+    void unCos() {operateUnary('c');}
+    void unLog() {operateUnary('l');}
+    void unSqr() {operateUnary('q');}
+    void mrc() {operateMem('r');}
+    void mPlus() {operateMem('+');}
+    void mMinus() {operateMem('-');}
+//    void test() {currNum.test();}
 private:
-    bool isBlocked = true;
-    char op = '\0';
+    unsigned int state = 0;
+    char prevOp = '\0';
     Number currNum{};
     Number prevNum{};
+    Number secNum{};
     Number memNum{};
 };
 

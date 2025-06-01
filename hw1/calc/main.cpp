@@ -161,7 +161,20 @@ int main(int argc, char *argv[])
     QObject::connect(btnDot, &QToolButton::clicked, calc, &Logic::inputDot);
     QObject::connect(btnDel, &QToolButton::clicked, calc, &Logic::delDig);
     QObject::connect(btnSign, &QToolButton::clicked, calc, &Logic::chSign);
-    QObject::connect(btnSqr, &QToolButton::clicked, calc, &Logic::test);
+    QObject::connect(btnSqr, &QToolButton::clicked, calc, &Logic::unSqr);
+    QObject::connect(btnSin, &QToolButton::clicked, calc, &Logic::unSin);
+    QObject::connect(btnCos, &QToolButton::clicked, calc, &Logic::unCos);
+    QObject::connect(btnLog, &QToolButton::clicked, calc, &Logic::unLog);
+    QObject::connect(btnAdd, &QToolButton::clicked, calc, &Logic::binAdd);
+    QObject::connect(btnSub, &QToolButton::clicked, calc, &Logic::binSub);
+    QObject::connect(btnMult, &QToolButton::clicked, calc, &Logic::binMult);
+    QObject::connect(btnDiv, &QToolButton::clicked, calc, &Logic::binDiv);
+    QObject::connect(btnPow, &QToolButton::clicked, calc, &Logic::binPow);
+    QObject::connect(btnEqual, &QToolButton::clicked, calc, &Logic::operateEvaluate);
+    QObject::connect(btnMemAdd, &QToolButton::clicked, calc, &Logic::mPlus);
+    QObject::connect(btnMemShow, &QToolButton::clicked, calc, &Logic::mrc);
+    QObject::connect(btnMemSub, &QToolButton::clicked, calc, &Logic::mMinus);
+
 
 
     QObject::connect(calc, &Logic::onChanged, printText);
